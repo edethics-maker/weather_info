@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>간단한 날씨 웹앱</title>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--muted:#9aa4bf;--accent:#60a5fa}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;font-family:Inter,Roboto,Apple SD Gothic Neo,\"Malgun Gothic\",sans-serif;
+      background:linear-gradient(180deg,#071022 0%, #0b1220 100%);color:#e6eef8;
+      display:flex;align-items:center;justify-content:center;padding:24px
+    }
+    .app{width:100%;max-width:820px}
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);padding:22px;border-radius:14px;box-shadow:0 6px 30px rgba(2,6,23,0.6)
+    }
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:10px}
+    h1{font-size:20px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    input[type="search"]{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:10px 12px;border-radius:10px;color:inherit;min-width:220px}
+    button{background:var(--accent);color:#032047;border:none;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
+    .main{display:grid;grid-template-columns:1fr 260px;gap:18px;margin-top:12px}
+    .left{padding:14px}
+    .location{display:flex;gap:12px;align-items:center}
+    .loc-name{font-size:18px;font-weight:700}
+    .time-muted{color:var(--muted);font-size:13px}
+    .big-temp{font-size:56px;font-weight:800;margin-top:10px}
+    .cond{display:flex;gap:12px;align-items:center;margin-top:8px}
+    .cond img{width:64px;height:64px}
+    .details{display:flex;gap:14px;margin-top:14px;color:var(--muted);flex-wrap:wrap}
+    .pill{background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;min-width:110px}
+    .right{background:rgba(255,255,255,0.01);padding:14px;border-radius:10px}
+    .forecast{display:flex;flex-direction:column;gap:8px}
+    .forecast-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px}
+    footer{margin-top:14px;color:var(--muted);font-size:13px}
+    .hint{color:var(--muted);font-size:13px}
+    @media(max-width:720px){.main{grid-template-columns:1fr;}.right{order:2}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <header>
+        <h1>간단한 날씨 웹앱</h1>
+        <div class="controls">
+          <input id="q" type="search" placeholder="도시 이름 입력 (예: Seoul, London)" />
+          <button id="searchBtn">검색</button>
+          <button id="geoBtn" class="ghost">내 위치</button>
+        </div>
+      </header>
+
+      <div class="main">
+        <section class="left">
+          <div class="location">
+            <div>
+              <div id="locationName" class="loc-name">---</div>
+              <div id="localTime" class="time-muted">--:--</div>
+            </div>
+          </div>
+
+          <div class="big-temp" id="temp">--°C</div>
+
+          <div class="cond">
+            <img id="icon" src="" alt="weather icon" style="display:none"/>
+            <div>
+              <div id="conditionText" style="font-weight:700">-</div>
+              <div id="feelsLike" class="time-muted">체감: -</div>
+            </div>
+          </div>
+
+          <div class="details" id="details">
+            <div class="pill">습도: <span id="humidity">-</span>%</div>
+            <div class="pill">바람: <span id="wind">-</span> kph</div>
+            <div class="pill">풍향: <span id="windDir">-</span></div>
+            <div class="pill">가시거리: <span id="vis">-</span> km</div>
+          </div>
+        </section>
+
+        <aside class="right">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:700">예보 (오늘)</div>
+            <div class="hint">단기 요약</div>
+          </div>
+
+          <div class="forecast" id="forecastList">
+            <!-- forecast items injected here -->
+          </div>
+
+        </aside>
+      </div>
+
+      <footer>
+        <div>Powered by WeatherAPI.com</div>
+        <div style="margin-top:6px" class="hint">주의: 이 앱은 클라이언트 사이드에서 직접 API 키를 사용합니다. 배포 시에는 서버 프록시 또는 환경변수로 키를 숨기세요.</div>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    // 사용하신 API 키 (주의: 공개 저장소/배포 시 안전하게 보관하세요)
+    const API_KEY = 'bb35543af24443458b920823251304';
+    const baseUrl = 'https://api.weatherapi.com/v1';
+
+    // DOM
+    const qInput = document.getElementById('q');
+    const searchBtn = document.getElementById('searchBtn');
+    const geoBtn = document.getElementById('geoBtn');
+
+    const locationName = document.getElementById('locationName');
+    const localTime = document.getElementById('localTime');
+    const temp = document.getElementById('temp');
+    const icon = document.getElementById('icon');
+    const conditionText = document.getElementById('conditionText');
+    const feelsLike = document.getElementById('feelsLike');
+    const humidity = document.getElementById('humidity');
+    const wind = document.getElementById('wind');
+    const windDir = document.getElementById('windDir');
+    const vis = document.getElementById('vis');
+    const forecastList = document.getElementById('forecastList');
+
+    // 기본: 서울
+    const DEFAULT_QUERY = 'Seoul';
+
+    async function fetchWeather(q){
+      try{
+        showLoading(true);
+        // current + forecast for 1 day
+        const url = `${baseUrl}/forecast.json?key=${API_KEY}&q=${encodeURIComponent(q)}&days=1&aqi=no&alerts=no`;
+        const res = await fetch(url);
+        if(!res.ok) throw new Error('응답 오류: ' + res.status);
+        const data = await res.json();
+        render(data);
+      }catch(err){
+        alert('정보를 가져오는 중 오류가 발생했습니다. ('+err.message+')');
+        console.error(err);
+      }finally{ showLoading(false); }
+    }
+
+    function render(data){
+      if(!data) return;
+      const loc = data.location;
+      const cur = data.current;
+      const day = data.forecast && data.forecast.forecastday && data.forecast.forecastday[0];
+
+      locationName.textContent = `${loc.name}, ${loc.region ? loc.region + ', ' : ''}${loc.country}`;
+      localTime.textContent = `지역 시간: ${loc.localtime}`;
+
+      temp.textContent = `${Math.round(cur.temp_c)}°C / ${Math.round(cur.temp_f)}°F`;
+      conditionText.textContent = cur.condition && cur.condition.text ? cur.condition.text : '-';
+      feelsLike.textContent = `체감: ${cur.feelslike_c}°C`;
+
+      if(cur.condition && cur.condition.icon){
+        // WeatherAPI의 아이콘 경로는 //cdn.weatherapi.com/... 형식이므로 프로토콜 보정
+        const iconUrl = cur.condition.icon.startsWith('//') ? 'https:' + cur.condition.icon : cur.condition.icon;
+        icon.src = iconUrl; icon.style.display = 'block';
+      } else { icon.style.display = 'none'; }
+
+      humidity.textContent = cur.humidity;
+      wind.textContent = cur.wind_kph;
+      windDir.textContent = cur.wind_dir;
+      vis.textContent = cur.vis_km;
+
+      // 간단한 오늘 예보 요약
+      forecastList.innerHTML = '';
+      if(day){
+        const item = document.createElement('div');
+        item.className = 'forecast-item';
+        item.innerHTML = `<div style="display:flex;gap:10px;align-items:center"><div>${day.date}</div><div style="font-weight:700">${day.day.condition.text}</div></div><div style="text-align:right"><div>최고 ${day.day.maxtemp_c}°C</div><div>최저 ${day.day.mintemp_c}°C</div></div>`;
+        forecastList.appendChild(item);
+
+        const astro = document.createElement('div');
+        astro.className = 'forecast-item';
+        astro.innerHTML = `<div>해 뜨는 시각: ${day.astro.sunrise}</div><div>해 지는 시각: ${day.astro.sunset}</div>`;
+        forecastList.appendChild(astro);
+      }
+    }
+
+    function showLoading(isLoading){
+      if(isLoading){ searchBtn.disabled = true; searchBtn.textContent = '로딩...'; }
+      else { searchBtn.disabled = false; searchBtn.textContent = '검색'; }
+    }
+
+    // 이벤트
+    searchBtn.addEventListener('click', ()=>{
+      const q = qInput.value.trim() || DEFAULT_QUERY;
+      fetchWeather(q);
+    });
+
+    qInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ searchBtn.click(); } });
+
+    geoBtn.addEventListener('click', ()=>{
+      if(!navigator.geolocation){ alert('이 브라우저는 위치 정보를 지원하지 않습니다.'); return; }
+      navigator.geolocation.getCurrentPosition(async (pos)=>{
+        const lat = pos.coords.latitude; const lon = pos.coords.longitude;
+        fetchWeather(`${lat},${lon}`);
+      }, (err)=>{ alert('위치 정보를 가져오지 못했습니다: ' + err.message); });
+    });
+
+    // 초기 로드
+    fetchWeather(DEFAULT_QUERY);
+  </script>
+</body>
+</html>
